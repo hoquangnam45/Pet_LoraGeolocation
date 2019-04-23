@@ -1,48 +1,73 @@
 //Time syncing test
-#include "heltec.h"
+#include "src/Heltec_ESP32_Dev-Boards/src/heltec.h"
 #include "src/mylib/PacketHandle.h"
+
 #define BAND 433E6  //you can set band here directly,e.g. 868E6,915E6
-#define MSG_SIZE 256
-#define localAddress 0xFF
+#define localAddress 0x00
+#define WAIT_TIME_MS 2000
+#define MSG_SIZE 300
 
 PacketHandle PacketHandler(localAddress);
+Packet packet, packetConfirm;
+volatile uint8_t continueFlag = 0, receiveFlag = 0;
+volatile uint32_t receiveTimeStamp = 0, sendTimeStamp = 0;
+char Buffer[MSG_SIZE];
 
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-  while(!Serial);
   Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
-  
-  // register the receive callback
-  LoRa.onReceive(getReceiveTimeStamp);
-  LoRa.receive();
+  LoRa.enableCrc();
+  LoRa.setCodingRate4(8);
+  LoRa.setSpreadingFactor(7);
 }
 
 void loop() {
+  receiveFlag = 1;
+  LoRa.onReceive(receiveSyncRequest);
+  LoRa.receive();
+  while(!continueFlag);
+  continueFlag = 0;
+  delay(10); // delay 10ms for the other to ready receive message
+  PacketHandler.returnMessage(packet.getHeader(), "Sync reply");
+  sendTimeStamp = LoRa.getSendTimeStamp();
 
+  LoRa.onReceive(receiveSyncRequest);
+  LoRa.receive();
+  uint32_t startTime = millis();
+  while(millis() - startTime < WAIT_TIME_MS && !continueFlag);// Wait for received confirmation
+  if (!continueFlag){
+    Serial.println("Failed wait");
+    return;
+  }
+  continueFlag = 0;
+  
+  sprintf(Buffer, "Receive timestamp: %010lu; Send timestamp: %010lu", receiveTimeStamp, sendTimeStamp);
+  delay(10); // delay 10ms for the other to ready receive message
+  PacketHandler.returnMessage(packet.getHeader(), Buffer);
+  Serial.println(Buffer);
+  Serial.println();
+  Serial.println();
 }
 
-void getReceiveTimeStamp(int packetSize){
-  unsigned long temp_receiveTimeStamp = ESP.getCycleCount();
-  //
-  // get offset
-  unsigned long start = ESP.getCycleCount();
-  int offsetBase = ESP.getCycleCount() - start;
-  
-  unsigned long receiveTimeStamp = temp_receiveTimeStamp - offsetBase;
-  
-  char bufferReceive[MSG_SIZE];
-  char bufferSend[MSG_SIZE];
-  PacketHeader receiveHeader;// = PacketHandler.parseHeader(bufferReceive);
-  int test = receiveHeader.getSrcAddr();
-  if(!PacketHandler.validatePacket(receiveHeader, bufferReceive)) return;
-  if (strcmp(bufferReceive, "Sync request")) return;
-  
-  PacketHandler.returnMessage(receiveHeader, "Sync reply");
-  unsigned long temp_sendTimeStamp = ESP.getCycleCount();
-  unsigned long sendTimeStamp = temp_sendTimeStamp - offsetBase;
-
-  sprintf(bufferSend, "Master timestamp receive - %lu; Master timestamp send - %lu", receiveTimeStamp, sendTimeStamp);
-  PacketHandler.returnMessage(receiveHeader, bufferSend);
+void receiveSyncRequest(int packetSize){
+  if (receiveFlag == 1){
+    receiveTimeStamp = LoRa.getReceiveTimeStamp();
+    PacketHandler.parsePacket(packet);
+    PacketHandler.printPacket(packet);
+    if (!PacketHandler.validatePacket(packet)) return;
+    if (strcmp(packet.getMsg(), "Sync request")) return;
+    continueFlag = 1;
+    receiveFlag = 2;
+    LoRa.onReceive(NULL);
+  }
+  else if (receiveFlag == 2){
+    PacketHandler.parsePacket(packetConfirm);
+    PacketHandler.printPacket(packetConfirm);
+    if (!(packetConfirm.getHeader() == packet.getHeader())) return;
+    if(strcmp(packetConfirm.getMsg(), "Received")) return;
+    continueFlag = 1;
+    receiveFlag = 0;
+    LoRa.onReceive(NULL);
+  }
 }
+
 

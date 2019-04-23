@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "/home/hoquangnam/.arduino15/packages/Heltec-esp32/tools/**",
+                "/home/hoquangnam/.arduino15/packages/Heltec-esp32/hardware/esp32/0.0.2-rc1/**"
+            ],
+            "forcedInclude": [],
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}

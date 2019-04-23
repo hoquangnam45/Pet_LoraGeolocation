@@ -2,5 +2,6 @@
     "board": "Heltec-esp32:esp32:wifi_lora_32",
     "configuration": "PSRAM=disabled,PartitionScheme=default,CPUFreq=240,FlashMode=qio,FlashFreq=80,FlashSize=4M,UploadSpeed=921600,DebugLevel=verbose",
     "sketch": "Time_syncing_master/Time_syncing_master.ino",
-    "output": "./build"
+    "output": "./build",
+    "port": "/dev/ttyUSB0"
 }
